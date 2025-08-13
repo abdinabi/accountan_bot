@@ -28,7 +28,7 @@ async def init_db():
     return conn
 
 async def init_table(conn, chat_id):
-    table_name = f"transactions_{chat_id}"
+    table_name = f"transactions_{str(chat_id).replace('-', '')}"
     await conn.execute(f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             id SERIAL PRIMARY KEY,
