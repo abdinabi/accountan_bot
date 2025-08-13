@@ -117,7 +117,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 
-TOKEN = "8371020691:AAFdajHmJH00rLquuc_OEJB8ngqaVvTvTq8Н"
+TOKEN = "8371020691:AAEXdAygCN3vxTV4f4ib5mrFzS2EBcye7EI"
 DB_PATH = "finance.db"
 
 # ==== КНОПКИ ====
