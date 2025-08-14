@@ -5,17 +5,23 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 import asyncpg
 from dotenv import load_dotenv
+from openai import OpenAI
+from datetime import datetime, timedelta
 
 load_dotenv()
 
 TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ==== КНОПКИ ====
 main_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="💰 Доход"), KeyboardButton(text="💸 Расход")],
-        [KeyboardButton(text="📊 Баланс"), KeyboardButton(text="🗓 Остатки по периодам")]
+        [KeyboardButton(text="📊 Баланс"), KeyboardButton(text="🗓 Остатки по периодам")],
+        [KeyboardButton(text="🤖 Анализ ИИ")]
     ],
     resize_keyboard=True
 )
@@ -97,6 +103,47 @@ async def monthly_stats(message: types.Message):
         balance = (row['income'] or 0) - (row['expense'] or 0)
         text += f"📅 {row['period']}\nДоход: +{row['income']:.2f} ₸\nРасход: -{row['expense']:.2f} ₸\nОстаток: {balance:.2f} ₸\n\n"
     await message.answer(text)
+
+@dp.message(F.text == "🤖 Анализ ИИ")
+async def ai_analysis(message: types.Message):
+    conn = await init_db()
+    table = await init_table(conn, message.chat.id)
+
+    # Данные за последние 30 дней
+    month_ago = datetime.now() - timedelta(days=30)
+    rows = await conn.fetch(f"""
+        SELECT category, SUM(amount) as total
+        FROM {table}
+        WHERE type='expense' AND date >= $1
+        GROUP BY category
+        ORDER BY total DESC
+    """, month_ago)
+    await conn.close()
+
+    if not rows:
+        await message.answer("Нет данных для анализа 📭")
+        return
+
+    expenses_list = "\n".join([f"{r['category']}: {r['total']:.2f} ₸" for r in rows])
+    prompt = f"""
+    Я веду учёт расходов. Вот мои траты за последний месяц:
+    {expenses_list}
+
+    Проанализируй их и подскажи, где можно сэкономить, но так, чтобы сохранить комфорт жизни.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Ты опытный финансовый аналитик и консультант."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        ai_reply = response.choices[0].message.content
+        await message.answer(f"📊 Анализ ИИ:\n\n{ai_reply}")
+    except Exception as e:
+        await message.answer(f"Ошибка при анализе: {e}")
 
 @dp.message()
 async def handle_amount(message: types.Message):
